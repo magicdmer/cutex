@@ -19,6 +19,16 @@ CONFIG += \
     c++11 \
     staticlib \
 
+win32:CONFIG(debug,debug|release): {
+    TARGET = cutex_$${QT_ARCH}_d
+    QMAKE_CXXFLAGS += /MP
+}
+
+win32:CONFIG(release,debug|release): {
+    TARGET = cutex_$${QT_ARCH}_r
+    QMAKE_CXXFLAGS += /MP
+}
+
 equals(QT_MAJOR_VERSION, 6) {
     error(Qt $$QT_VERSION is not supported yet!)
 }

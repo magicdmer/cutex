@@ -1,4 +1,4 @@
-/***********************************************************************************************************************
+﻿/***********************************************************************************************************************
 **
 ** Copyright (C) 2016-2021 Partsoft UG (haftungsbeschränkt)
 ** Contact: https://www.partsoft.de/index.php/kontakt
@@ -772,15 +772,29 @@ void QxTextEdit::insertImage(const QImage &image)
     QVariant resource;
     QTextImageFormat format;
 
-    do {
-        url = "image://" + QxRandom::get(10, QxRandom::LOWERCHARS);
-        resource = document()->resource(QTextDocument::ImageResource, url);
-    } while (resource.isValid());
+    QByteArray array;
+    QBuffer buffer(&array);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer,"png");
+
+    QCryptographicHash Hash(QCryptographicHash::Sha1);   //此处采用Sha1,若有不同可自行选择
+    Hash.addData(array);
+    QByteArray HASH1 = Hash.result();
+    QString fileHash = HASH1.toHex();
+
+    url = "image://" + fileHash + ".png";
+
+    int imgWidth = image.width(), imgHeight = image.height();
+    if (image.width() > width())
+    {
+        imgWidth = width() * 0.8;
+        imgHeight = image.height() * (width() * 0.8/image.width());
+    }
 
     document()->addResource(QTextDocument::ImageResource, QUrl(url), image);
     format.setName(url);
-    format.setWidth(image.width());
-    format.setHeight(image.height());
+    format.setWidth(imgWidth);
+    format.setHeight(imgHeight);
     textCursor().insertImage(format);
 }
 
