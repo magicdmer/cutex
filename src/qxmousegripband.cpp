@@ -125,6 +125,9 @@ void QxMouseGripBand::mousePressEvent(QMouseEvent *event)
         if (m_dragGrip == QxMouseGripBand::NoGrip && m_moveEnabled)
             m_dragPos = event->windowPos();
     }
+    else if (event->button() == Qt::RightButton && isVisible()) {
+        emit rightClicked();
+    }
 }
 
 void QxMouseGripBand::mouseMoveEvent(QMouseEvent *event)

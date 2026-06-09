@@ -70,6 +70,7 @@ signals:
     void resizeFinished(const QRect &rect);
     void moved(const QRect &rect);
     void moveFinished(const QRect &rect);
+    void rightClicked();
 };
 
 } // namespace
