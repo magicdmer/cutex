@@ -832,18 +832,38 @@ void QxTextEdit::updateGripBand()
         if (!cursor.atBlockStart())
             cursor.movePosition(QTextCursor::Left);
 
+        QImage image = document()->resource(QTextDocument::ImageResource, fmt.name()).value<QImage>();
+        double imageWidth = fmt.width();
+        double imageHeight = fmt.height();
+        double aspectWidth = image.width();
+        double aspectHeight = image.height();
+        if (!imageWidth)
+            imageWidth = image.width();
+        if (!imageHeight)
+            imageHeight = image.height();
+        if (!aspectWidth || !aspectHeight) {
+            aspectWidth = imageWidth;
+            aspectHeight = imageHeight;
+        }
+
         QRect rc = cursorRect(cursor);
         rc.setLeft(rc.left() + 1);
         rc.setTop(rc.top() + 1);
-        rc.setWidth(fmt.width());
+        rc.setWidth(imageWidth);
         rc.setHeight(rc.height() + 1);
 
         if (!rc.width()) {
-            QImage image = document()->resource(QTextDocument::ImageResource, fmt.name()).value<QImage>();
             rc.setWidth(image.width());
         }
 
+        if (aspectWidth > 0.0 && aspectHeight > 0.0)
+            m_gripBand->setAspectRatio(aspectWidth / aspectHeight);
+        else
+            m_gripBand->setAspectRatio(0.0);
+
         m_gripBand->setGeometry(rc);
+    } else {
+        m_gripBand->setAspectRatio(0.0);
     }
 }
 
@@ -853,8 +873,27 @@ void QxTextEdit::resizeObject(const QRect &rect)
 
     if (cursor.charFormat().isImageFormat()) {
         QTextImageFormat fmt = cursor.charFormat().toImageFormat();
-        fmt.setWidth(rect.width());
-        fmt.setHeight(rect.height());
+        double width = rect.width();
+        double height = rect.height();
+        double oldWidth = fmt.width();
+        double oldHeight = fmt.height();
+        QImage image = document()->resource(QTextDocument::ImageResource, fmt.name()).value<QImage>();
+
+        if (!image.isNull()) {
+            oldWidth = image.width();
+            oldHeight = image.height();
+        } else if ((!oldWidth || !oldHeight) && !fmt.name().isEmpty()) {
+            if (!oldWidth)
+                oldWidth = image.width();
+            if (!oldHeight)
+                oldHeight = image.height();
+        }
+
+        if (oldWidth > 0.0 && oldHeight > 0.0)
+            height = width / (oldWidth / oldHeight);
+
+        fmt.setWidth(width);
+        fmt.setHeight(height);
         cursor.setCharFormat(fmt);
 
         QTextCursor temp = cursor;

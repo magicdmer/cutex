@@ -45,6 +45,8 @@ public:
     void setGripSize(const QSize &size);
     QColor gripColor() const;
     void setGripColor(const QColor &color);
+    double aspectRatio() const;
+    void setAspectRatio(double ratio);
 
 protected:
     virtual void paintEvent(QPaintEvent *event);
@@ -59,11 +61,13 @@ private:
     bool m_moveEnabled;
     QSize m_gripSize;
     QColor m_gripColor;
+    double m_aspectRatio;
     QPointF m_dragPos;
     Grip m_dragGrip;
 
 private:
     QMap<Grip, QRectF> gripPositions() const;
+    QRectF adjustedToAspectRatio(const QRectF &rect, const QRectF &oldRect) const;
 
 signals:
     void resized(const QRect &rect);

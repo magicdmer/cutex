@@ -29,6 +29,7 @@ QxMouseGripBand::QxMouseGripBand(QWidget *parent) : QWidget(parent)
     m_moveEnabled = true;
     m_gripSize = QSize(8, 8);
     m_gripColor = QColor(Qt::blue);
+    m_aspectRatio = 0.0;
     m_dragPos = QPointF();
     m_dragGrip = QxMouseGripBand::NoGrip;
 
@@ -88,6 +89,22 @@ void QxMouseGripBand::setGripColor(const QColor &color)
         m_gripColor = color;
         update();
     }
+}
+
+/*!
+  Gibt das Seitenverhältnis zurück, das bei der Größenänderung beibehalten wird.
+*/
+double QxMouseGripBand::aspectRatio() const
+{
+    return m_aspectRatio;
+}
+
+/*!
+  Setzt das Seitenverhältnis für Größenänderungen. Ein Wert kleiner/gleich 0 deaktiviert die Beschränkung.
+*/
+void QxMouseGripBand::setAspectRatio(double ratio)
+{
+    m_aspectRatio = qMax(0.0, ratio);
 }
 
 void QxMouseGripBand::paintEvent(QPaintEvent *event)
@@ -168,6 +185,7 @@ void QxMouseGripBand::mouseMoveEvent(QMouseEvent *event)
     } else {
         QPointF pos = event->windowPos();
         QRectF rc = geometry();
+        QRectF oldRc = rc;
 
         switch (m_dragGrip) {
         case QxMouseGripBand::NoGrip:
@@ -203,6 +221,8 @@ void QxMouseGripBand::mouseMoveEvent(QMouseEvent *event)
             rc.setHeight(rc.height() + pos.ry() - m_dragPos.ry());
             break;
         }
+
+        rc = adjustedToAspectRatio(rc, oldRc);
 
         BREAKABLE_BLOCK {
             QSize minSize = minimumSize();
@@ -268,6 +288,85 @@ QMap<QxMouseGripBand::Grip, QRectF> QxMouseGripBand::gripPositions() const
     }
 
     return positions;
+}
+
+QRectF QxMouseGripBand::adjustedToAspectRatio(const QRectF &rect, const QRectF &oldRect) const
+{
+    if (m_aspectRatio <= 0.0 || m_dragGrip == QxMouseGripBand::NoGrip)
+        return rect;
+
+    QRectF rc = rect.normalized();
+    double width = rc.width();
+    double height = rc.height();
+
+    if (width <= 0.0 || height <= 0.0)
+        return rect;
+
+    switch (m_dragGrip) {
+    case QxMouseGripBand::Left:
+    case QxMouseGripBand::Right:
+        height = width / m_aspectRatio;
+        break;
+    case QxMouseGripBand::TopMiddle:
+    case QxMouseGripBand::BottomMiddle:
+        width = height * m_aspectRatio;
+        break;
+    case QxMouseGripBand::TopLeft:
+    case QxMouseGripBand::TopRight:
+    case QxMouseGripBand::BottomLeft:
+    case QxMouseGripBand::BottomRight:
+        if (qAbs(width - oldRect.width()) >= qAbs(height - oldRect.height()) * m_aspectRatio) {
+            height = width / m_aspectRatio;
+        } else {
+            width = height * m_aspectRatio;
+        }
+        break;
+    case QxMouseGripBand::NoGrip:
+        return rect;
+    }
+
+    switch (m_dragGrip) {
+    case QxMouseGripBand::TopLeft:
+        rc.setLeft(oldRect.right() - width);
+        rc.setTop(oldRect.bottom() - height);
+        break;
+    case QxMouseGripBand::TopRight:
+        rc.setRight(oldRect.left() + width);
+        rc.setTop(oldRect.bottom() - height);
+        break;
+    case QxMouseGripBand::BottomLeft:
+        rc.setLeft(oldRect.right() - width);
+        rc.setBottom(oldRect.top() + height);
+        break;
+    case QxMouseGripBand::BottomRight:
+        rc.setRight(oldRect.left() + width);
+        rc.setBottom(oldRect.top() + height);
+        break;
+    case QxMouseGripBand::Left:
+        rc.setLeft(oldRect.right() - width);
+        rc.setTop(oldRect.center().y() - height / 2.0);
+        rc.setBottom(rc.top() + height);
+        break;
+    case QxMouseGripBand::Right:
+        rc.setRight(oldRect.left() + width);
+        rc.setTop(oldRect.center().y() - height / 2.0);
+        rc.setBottom(rc.top() + height);
+        break;
+    case QxMouseGripBand::TopMiddle:
+        rc.setLeft(oldRect.center().x() - width / 2.0);
+        rc.setRight(rc.left() + width);
+        rc.setTop(oldRect.bottom() - height);
+        break;
+    case QxMouseGripBand::BottomMiddle:
+        rc.setLeft(oldRect.center().x() - width / 2.0);
+        rc.setRight(rc.left() + width);
+        rc.setBottom(oldRect.top() + height);
+        break;
+    case QxMouseGripBand::NoGrip:
+        break;
+    }
+
+    return rc;
 }
 
 /*!
