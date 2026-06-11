@@ -110,6 +110,7 @@ private:
 
 private:
     void insertImage(const QImage &image);
+    QUrl originalImageResourceUrl(const QString &name) const;
 
 private slots:
     void setUndoEnabled(bool enabled);

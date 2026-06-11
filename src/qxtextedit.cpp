@@ -1,4 +1,4 @@
-﻿/***********************************************************************************************************************
+/***********************************************************************************************************************
 **
 ** Copyright (C) 2016-2021 Partsoft UG (haftungsbeschränkt)
 ** Contact: https://www.partsoft.de/index.php/kontakt
@@ -24,6 +24,13 @@
 using namespace cutex;
 
 const QString QxTextEdit::MIMETYPE = "application/cutex/qxtextedit";
+
+QUrl QxTextEdit::originalImageResourceUrl(const QString &name) const
+{
+    QUrl url(name);
+    url.setFragment(QStringLiteral("cutex-original"));
+    return url;
+}
 
 /*!
   Erzeugt einen neuen Texteditor mit dem Elternobjekt <i>parent</i>.
@@ -802,8 +809,18 @@ void QxTextEdit::insertImage(const QImage &image)
         imgHeight = image.height() * (width() * 0.8/image.width());
     }
 
-    if (!document()->resource(QTextDocument::ImageResource, QUrl(url)).isValid())
-        document()->addResource(QTextDocument::ImageResource, QUrl(url), image);
+    QUrl imageUrl(url);
+    QUrl originalUrl = originalImageResourceUrl(url);
+    QSize targetSize(qMax(1, imgWidth), qMax(1, imgHeight));
+    QImage displayImage = image;
+
+    if (targetSize != image.size())
+        displayImage = image.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+    if (!document()->resource(QTextDocument::ImageResource, originalUrl).isValid())
+        document()->addResource(QTextDocument::ImageResource, originalUrl, image);
+
+    document()->addResource(QTextDocument::ImageResource, imageUrl, displayImage);
 
     format.setName(url);
     format.setWidth(imgWidth);
@@ -877,7 +894,15 @@ void QxTextEdit::resizeObject(const QRect &rect)
         double height = rect.height();
         double oldWidth = fmt.width();
         double oldHeight = fmt.height();
-        QImage image = document()->resource(QTextDocument::ImageResource, fmt.name()).value<QImage>();
+        QUrl imageUrl(fmt.name());
+        QUrl originalUrl = originalImageResourceUrl(fmt.name());
+        QImage image = document()->resource(QTextDocument::ImageResource, originalUrl).value<QImage>();
+
+        if (image.isNull()) {
+            image = document()->resource(QTextDocument::ImageResource, imageUrl).value<QImage>();
+            if (!image.isNull())
+                document()->addResource(QTextDocument::ImageResource, originalUrl, image);
+        }
 
         if (!image.isNull()) {
             oldWidth = image.width();
@@ -891,6 +916,17 @@ void QxTextEdit::resizeObject(const QRect &rect)
 
         if (oldWidth > 0.0 && oldHeight > 0.0)
             height = width / (oldWidth / oldHeight);
+
+        if (!image.isNull()) {
+            QSize targetSize(qMax(1, qRound(width)), qMax(1, qRound(height)));
+            QImage displayImage = image;
+
+            if (targetSize != image.size()) {
+                displayImage = image.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            }
+
+            document()->addResource(QTextDocument::ImageResource, imageUrl, displayImage);
+        }
 
         fmt.setWidth(width);
         fmt.setHeight(height);
