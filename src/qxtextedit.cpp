@@ -727,31 +727,42 @@ bool QxTextEdit::canInsertFromMimeData(const QMimeData *source) const
 */
 QMimeData* QxTextEdit::createMimeDataFromSelection() const
 {
-    QMimeData *data = nullptr;
+    QMimeData *data = QTextEdit::createMimeDataFromSelection();
 
-    if (textCursor().charFormat().isImageFormat())
-    {
-        data = new QMimeData();
-        QTextImageFormat fmt = textCursor().charFormat().toImageFormat();
-        QImage image = document()->resource(QTextDocument::ImageResource, fmt.name()).value<QImage>();
-        data->setImageData(image);
+    QTextCursor cursor = textCursor();
+    if (cursor.hasSelection()) {
+        int start = qMin(cursor.position(), cursor.anchor());
+        int end = qMax(cursor.position(), cursor.anchor());
+        if (end - start == 1) {
+            QTextCursor tmp = cursor;
+            tmp.setPosition(end);
+            if (tmp.charFormat().isImageFormat()) {
+                QTextImageFormat fmt = tmp.charFormat().toImageFormat();
+                QImage image = document()->resource(QTextDocument::ImageResource, fmt.name()).value<QImage>();
+                data->setImageData(image);
+            }
+        }
     }
-    else
-    {
-        data = QTextEdit::createMimeDataFromSelection();
 
-        QxTextDocument doc;
-        QTextDocumentFragment fragment(textCursor());
-        doc.setHtml(fragment.toHtml());
+    QxTextDocument doc;
+    QTextDocumentFragment fragment(cursor);
+    doc.setHtml(fragment.toHtml());
 
-        QByteArray array;
-        QBuffer buffer(&array);
-        buffer.open(QBuffer::WriteOnly);
-        QDataStream out(&buffer);
-
-        out << doc;
-        data->setData(MIMETYPE, array);
+    QList<QUrl> images = doc.images();
+    for (int i = 0; i < images.count(); i++) {
+        QVariant imageData = document()->resource(QTextDocument::ImageResource, images.at(i));
+        if (imageData.isValid()) {
+            doc.addResource(QTextDocument::ImageResource, images.at(i), imageData);
+        }
     }
+
+    QByteArray array;
+    QBuffer buffer(&array);
+    buffer.open(QBuffer::WriteOnly);
+    QDataStream out(&buffer);
+
+    out << doc;
+    data->setData(MIMETYPE, array);
 
     return data;
 }
@@ -772,7 +783,20 @@ void QxTextEdit::insertFromMimeData(const QMimeData *source)
         QDataStream in(&buffer);
 
         in >> doc;
-        insertHtml(doc.toHtml());
+
+        QList<QUrl> images = doc.images();
+        for (int i = 0; i < images.count(); i++) {
+            QVariant imageData = doc.resource(QTextDocument::ImageResource, images.at(i));
+            if (imageData.isValid()) {
+                document()->addResource(QTextDocument::ImageResource, images.at(i), imageData);
+            }
+        }
+
+        if (source->hasHtml() || source->hasText()) {
+            QTextEdit::insertFromMimeData(source);
+        } else {
+            insertHtml(doc.toHtml());
+        }
     } else if (source->hasImage()) {
         insertImage(qvariant_cast<QImage>(source->imageData()));
 
