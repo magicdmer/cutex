@@ -1,4 +1,4 @@
-/***********************************************************************************************************************
+﻿/***********************************************************************************************************************
 **
 ** Copyright (C) 2016-2021 Partsoft UG (haftungsbeschränkt)
 ** Contact: https://www.partsoft.de/index.php/kontakt
@@ -111,6 +111,8 @@ private:
 private:
     void insertImage(const QImage &image);
     QUrl originalImageResourceUrl(const QString &name) const;
+    QTextCharFormat pastedTextFormat() const;
+    void applyEditorTextFormat(QTextDocument *document) const;
 
 private slots:
     void setUndoEnabled(bool enabled);

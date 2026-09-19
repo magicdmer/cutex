@@ -1,4 +1,4 @@
-/***********************************************************************************************************************
+﻿/***********************************************************************************************************************
 **
 ** Copyright (C) 2016-2021 Partsoft UG (haftungsbeschränkt)
 ** Contact: https://www.partsoft.de/index.php/kontakt
@@ -20,6 +20,8 @@
 #include "qxtextedit.h"
 #include "qxtextdocument.h"
 #include "qxrandom.h"
+#include <QTextBlock>
+#include <QTextFragment>
 
 using namespace cutex;
 
@@ -767,6 +769,71 @@ QMimeData* QxTextEdit::createMimeDataFromSelection() const
     return data;
 }
 
+// Normalize pasted rich text to the target editor's family, size, weight and foreground.
+// Keep images and structural formatting. Use the editor font so stale pasted formats do not propagate.
+QTextCharFormat QxTextEdit::pastedTextFormat() const
+{
+    QTextCharFormat textFormat;
+
+    const QFont editorFont = font();
+    const QString family = editorFont.family();
+    if (!family.isEmpty()) {
+        textFormat.setFontFamily(family);
+#if QT_VERSION >= QT_VERSION_CHECK(5,13,0)
+        // FontFamily alone does not override an existing FontFamilies property.
+        QStringList families = editorFont.families();
+        if (families.isEmpty()) {
+            families << family;
+        }
+        textFormat.setFontFamilies(families);
+#endif
+    }
+
+    if (editorFont.pointSizeF() > 0) {
+        textFormat.setFontPointSize(editorFont.pointSizeF());
+    } else if (editorFont.pixelSize() > 0) {
+        textFormat.setProperty(QTextFormat::FontPixelSize, editorFont.pixelSize());
+    }
+    textFormat.setFontWeight(editorFont.weight());
+
+    QBrush foreground = currentCharFormat().foreground();
+    if (foreground.style() == Qt::NoBrush) {
+        foreground = palette().brush(QPalette::Text);
+    }
+    textFormat.setForeground(foreground);
+
+    return textFormat;
+}
+
+// Normalize text fragments and block character formats, but skip image fragments.
+// This only touches a temporary document and therefore adds no target-document edit records.
+void QxTextEdit::applyEditorTextFormat(QTextDocument *document) const
+{
+    const QTextCharFormat textFormat = pastedTextFormat();
+
+    // Collect ranges first because merging formats can split fragments and invalidate iterators.
+    QVector<QPair<int, int> > ranges;
+    for (QTextBlock block = document->begin(); block.isValid(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fragment = it.fragment();
+            if (!fragment.isValid() || fragment.charFormat().isImageFormat()) {
+                continue;
+            }
+            ranges.append(qMakePair(fragment.position(), fragment.position() + fragment.length()));
+        }
+
+        QTextCursor blockCursor(block);
+        blockCursor.mergeBlockCharFormat(textFormat);
+    }
+
+    for (int i = 0; i < ranges.size(); i++) {
+        QTextCursor rangeCursor(document);
+        rangeCursor.setPosition(ranges.at(i).first);
+        rangeCursor.setPosition(ranges.at(i).second, QTextCursor::KeepAnchor);
+        rangeCursor.mergeCharFormat(textFormat);
+    }
+}
+
 /*!
   Fügt die MIME-Daten <i>source</i> ein.
 */
@@ -792,11 +859,15 @@ void QxTextEdit::insertFromMimeData(const QMimeData *source)
             }
         }
 
-        if (source->hasHtml() || source->hasText()) {
-            QTextEdit::insertFromMimeData(source);
-        } else {
-            insertHtml(doc.toHtml());
-        }
+        // Normalize in a temporary document and insert once, preserving native undo and cursor behavior.
+        QTextDocument pastedDocument;
+        pastedDocument.setDefaultFont(font());
+        pastedDocument.setHtml(source->hasHtml() ? source->html() : doc.toHtml());
+        applyEditorTextFormat(&pastedDocument);
+
+        QTextCursor pastedCursor(&pastedDocument);
+        pastedCursor.select(QTextCursor::Document);
+        textCursor().insertFragment(QTextDocumentFragment(pastedCursor));
     } else if (source->hasImage()) {
         insertImage(qvariant_cast<QImage>(source->imageData()));
 
