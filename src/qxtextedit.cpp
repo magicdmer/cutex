@@ -834,6 +834,18 @@ void QxTextEdit::applyEditorTextFormat(QTextDocument *document) const
     }
 }
 
+void QxTextEdit::insertNormalizedHtml(const QString &html)
+{
+    QTextDocument pastedDocument;
+    pastedDocument.setDefaultFont(font());
+    pastedDocument.setHtml(html);
+    applyEditorTextFormat(&pastedDocument);
+
+    // insertFragment() flattens copied QTextTable structures in some clipboard paths.
+    // Reinsert normalized HTML so tables, lists and other rich-text structures survive.
+    textCursor().insertHtml(pastedDocument.toHtml());
+}
+
 /*!
   Fügt die MIME-Daten <i>source</i> ein.
 */
@@ -859,17 +871,12 @@ void QxTextEdit::insertFromMimeData(const QMimeData *source)
             }
         }
 
-        // Normalize in a temporary document and insert once, preserving native undo and cursor behavior.
-        QTextDocument pastedDocument;
-        pastedDocument.setDefaultFont(font());
-        pastedDocument.setHtml(source->hasHtml() ? source->html() : doc.toHtml());
-        applyEditorTextFormat(&pastedDocument);
-
-        QTextCursor pastedCursor(&pastedDocument);
-        pastedCursor.select(QTextCursor::Document);
-        textCursor().insertFragment(QTextDocumentFragment(pastedCursor));
+        insertNormalizedHtml(source->hasHtml() ? source->html() : doc.toHtml());
     } else if (source->hasImage()) {
         insertImage(qvariant_cast<QImage>(source->imageData()));
+
+    } else if (source->hasHtml()) {
+        insertNormalizedHtml(source->html());
 
     } else if (source->hasText()) {
         QTextEdit::insertPlainText(source->text());
