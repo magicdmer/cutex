@@ -805,7 +805,7 @@ QTextCharFormat QxTextEdit::pastedTextFormat() const
     return textFormat;
 }
 
-// Normalize text fragments and block character formats, but skip image fragments.
+// Replace text fragments and block character formats, but skip image fragments.
 // This only touches a temporary document and therefore adds no target-document edit records.
 void QxTextEdit::applyEditorTextFormat(QTextDocument *document) const
 {
@@ -823,14 +823,14 @@ void QxTextEdit::applyEditorTextFormat(QTextDocument *document) const
         }
 
         QTextCursor blockCursor(block);
-        blockCursor.mergeBlockCharFormat(textFormat);
+        blockCursor.setBlockCharFormat(textFormat);
     }
 
     for (int i = 0; i < ranges.size(); i++) {
         QTextCursor rangeCursor(document);
         rangeCursor.setPosition(ranges.at(i).first);
         rangeCursor.setPosition(ranges.at(i).second, QTextCursor::KeepAnchor);
-        rangeCursor.mergeCharFormat(textFormat);
+        rangeCursor.setCharFormat(textFormat);
     }
 }
 
